@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Chat</title>
+
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #login-container,
+        #chat-container {
+            width: 90%;
+            max-width: 650px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+        }
+
+        #login-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #username-input {
+            width: 80%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        #chat-container {
+            display: none;
+            flex-direction: column;
+            height: 80vh;
+        }
+
+        #status {
+            margin-bottom: 5px;
+        }
+
+        #users-list {
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        #chat-window {
+            flex: 1;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 10px 14px;
+            margin: 6px 0;
+            border-radius: 14px;
+            word-wrap: break-word;
+            font-size: 14px;
+        }
+
+        .me {
+            align-self: flex-end;
+            background: #007bff;
+            color: white;
+        }
+
+        .other {
+            align-self: flex-start;
+            background: #e4e6eb;
+            color: black;
+        }
+
+        .system-message {
+            align-self: center;
+            color: gray;
+            font-size: 13px;
+            margin: 8px 0;
+            font-style: italic;
+        }
+
+        #message-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        #message-input {
+            flex: 1;
+            padding: 10px;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="login-container">
+    <input type="text" id="username-input" placeholder="Введите ваше имя">
+    <button id="login-button">Войти</button>
+</div>
+
+<div id="chat-container">
+
+    <h2>💬 WebSocket Chat</h2>
+
+    <div id="status">🔴 Не подключено</div>
+    <div id="users-list">👥 Онлайн: —</div>
+
+    <div id="chat-window"></div>
+
+    <div id="message-form">
+        <input type="text" id="message-input" placeholder="Введите сообщение...">
+        <button id="send-button">Отправить</button>
+    </div>
+
+</div>
+
+<script>
+    let username = null;
+    let ws = null;
+
+    const loginContainer = document.getElementById("login-container");
+    const chatContainer = document.getElementById("chat-container");
+    const usernameInput = document.getElementById("username-input");
+    const loginButton = document.getElementById("login-button");
+
+    const status = document.getElementById("status");
+    const usersList = document.getElementById("users-list");
+    const chatWindow = document.getElementById("chat-window");
+    const messageInput = document.getElementById("message-input");
+    const sendButton = document.getElementById("send-button");
+
+    loginButton.addEventListener("click", () => {
+        username = usernameInput.value.trim();
+
+        if (username !== "") {
+            loginContainer.style.display = "none";
+            chatContainer.style.display = "flex";
+            initializeWebSocket();
+        }
+    });
+
+    function initializeWebSocket() {
+        status.textContent = "🟡 Подключение...";
+        ws = new WebSocket("ws://127.0.0.1:8765");
+
+        ws.onopen = () => {
+            status.textContent = "🟢 Подключено";
+
+            ws.send(JSON.stringify({
+                type: "join",
+                username: username
+            }));
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "message") {
+                appendMessage(data.username, data.text);
+            }
+
+            if (data.type === "status") {
+                appendStatus(data.text);
+            }
+
+            if (data.type === "users") {
+                usersList.textContent = "👥 Онлайн: " + data.users.join(", ");
+            }
+        };
+
+        ws.onclose = () => {
+            status.textContent = "🔴 Соединение закрыто";
+        };
+    }
+
+    sendButton.addEventListener("click", sendMessage);
+
+    messageInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            sendMessage();
+        }
+    });
+
+    function sendMessage() {
+        const text = messageInput.value.trim();
+
+        if (text !== "" && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: "message",
+                text: text
+            }));
+
+            messageInput.value = "";
+        }
+    }
+
+    function appendMessage(author, text) {
+        const messageElem = document.createElement("div");
+        messageElem.classList.add("message");
+
+        if (author === username) {
+            messageElem.classList.add("me");
+        } else {
+            messageElem.classList.add("other");
+        }
+
+        messageElem.textContent = `${author}: ${text}`;
+        chatWindow.appendChild(messageElem);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+
+    function appendStatus(text) {
+        const statusElem = document.createElement("div");
+        statusElem.classList.add("system-message");
+        statusElem.textContent = `— ${text} —`;
+
+        chatWindow.appendChild(statusElem);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
+</script>
+
+</body>
+</html>
