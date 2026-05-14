@@ -19,6 +19,7 @@
 ### 1. Сервер
 ```bash
 python serve/main.py
+```
 
 ### 2. Клиент
 
